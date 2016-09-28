@@ -1,0 +1,33 @@
+[unix_http_server]
+file=/tmp/supervisor.sock;
+
+[supervisorctl]
+serverurl=unix:///tmp/supervisor.sock;
+
+[rpcinterface:supervisor]
+supervisor.rpcinterface_factory=supervisor.rpcinterface:make_main_rpcinterface
+
+[supervisord]
+logfile=/tmp/securitymonkey.log
+logfile_maxbytes=50MB
+logfile_backups=2
+loglevel=trace
+pidfile=/tmp/supervisord.pid
+nodaemon=false
+minfds=1024
+minprocs=200
+user=<%= node['security_monkey']['user'] %>
+
+[program:securitymonkey]
+command=<%= @virtualenv %>/bin/python <%= node['security_monkey']['basedir'] %>/manage.py run_api_server
+environment=PYTHON_EGG_CACHE="<%= node['security_monkey']['basedir'] %>/.python-eggs",SECURITY_MONKEY_SETTINGS="<%= node['security_monkey']['basedir'] %>/env-config/config-deploy.py"
+
+# Disabling this in favor of cron
+#
+#[program:mozsecuritymonkeyscheduler]
+#command=<%= @virtualenv %>/bin/python <%= node['security_monkey']['basedir'] %>/moz_manage.py start_scheduler
+#directory=<%= node['security_monkey']['basedir'] %>/
+#environment=PYTHON_EGG_CACHE="<%= node['security_monkey']['basedir'] %>/.python-eggs",PYTHONPATH='<%= node['security_monkey']['basedir'] %>/',SECURITY_MONKEY_SETTINGS="<%= node['security_monkey']['basedir'] %>/env-config/config-deploy.py"
+#user=<%= node['security_monkey']['user'] %>
+#autostart=true
+#autorestart=true

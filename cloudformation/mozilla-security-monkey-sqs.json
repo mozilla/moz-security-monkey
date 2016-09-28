@@ -1,0 +1,22 @@
+{
+    "AWSTemplateFormatVersion":"2010-09-09",
+    "Description":"Mozilla Security Monkey SQS",
+    "Metadata":{
+        "Source":"https://github.com/gene1wood/moz-security-monkey"
+    },
+    "Parameters":{
+        "QueueName":{
+            "Description":"The name of the SQS queue",
+            "Type":"String"
+        }
+    },
+    "Resources":{
+        "SQSQueue": {
+            "Type": "AWS::SQS::Queue",
+            "Properties": {
+                "QueueName": {"Ref": "QueueName"}
+            }
+        }
+
+    }
+}

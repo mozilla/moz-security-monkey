@@ -1,0 +1,2 @@
+# security-monkey==0.3.6
+mozdef_client>=1.0.6

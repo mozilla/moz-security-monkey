@@ -1,0 +1,507 @@
+{
+  "AWSTemplateFormatVersion":"2010-09-09",
+  "Description":"Mozilla AWS Security Auditing Platform",
+  "Metadata":{
+    "Source":"https://github.com/gene1wood/moz-security-monkey"
+  },
+  "Parameters":{
+    "Environment":{
+      "Description":"Environment",
+      "AllowedValues":[
+        "dev",
+        "prod"
+      ],
+      "Default":"dev",
+      "Type":"String"
+    },
+    "SecurityTeamEmail":{
+      "Description":"Destination email for alerts",
+      "Default":"user@example.com",
+      "Type":"String"
+    },
+    "SSHKeyName":{
+      "Description":"SSH Key Name",
+      "Default":"gene-keys",
+      "Type":"String"
+    }
+  },
+  "Mappings":{
+    "RegionMap":{
+      "us-west-2":{
+        "AmazonLinuxAMI2014032":"ami-d13845e1",
+        "amznamihvm201409x8664ebs":"ami-8786c6b7",
+        "amznamihvm201503x8664ebs":"ami-e7527ed7",
+        "CentOS7x8664withUpdatesHVM":"ami-d2c924b2"
+      },
+      "us-east-1":{
+        "AmazonLinuxAMI2014032":"ami-76817c1e",
+        "amznamihvm201409x8664ebs":"ami-08842d60",
+        "amznamihvm201503x8664ebs":"ami-1ecae776",
+        "CentOS7x8664withUpdatesHVM":"ami-6d1c2007"
+      }
+    },
+    "EnvironmentMap":{
+      "dev":{
+        "Zone":"security.allizom.org",
+        "SQSQueueARN":"arn:aws:sqs:us-west-1:656532927350:infosec_mozdef_events_non_prod",
+        "SAMLMetaDataURL":"https://mozilla.okta.com/app/exk15xwg4o6c7H4zf1d8/sso/saml/metadata"
+      },
+      "prod":{
+        "Zone":"security.mozilla.org",
+        "SQSQueueARN":"arn:aws:sqs:us-west-1:656532927350:infosec_mozdef_events",
+        "SAMLMetaDataURL":"https://mozilla.okta.com/app/exk15z8ov13bKbG631d8/sso/saml/metadata"
+      }
+    }
+  },
+  "Resources":{
+    "ASAPSecurityGroup":{
+      "Type":"AWS::EC2::SecurityGroup",
+      "Properties":{
+        "GroupDescription":"ASAP Server Security Group",
+        "SecurityGroupIngress":[
+          {
+            "FromPort":"443",
+            "IpProtocol":"tcp",
+            "CidrIp":"0.0.0.0/0",
+            "ToPort":"443"
+          },
+          {
+            "FromPort":"22",
+            "IpProtocol":"tcp",
+            "CidrIp":"0.0.0.0/0",
+            "ToPort":"22"
+          }
+        ],
+        "Tags":[
+          {
+            "Key":"App",
+            "Value":"asap"
+          },
+          {
+            "Key":"Env",
+            "Value":{
+              "Ref":"Environment"
+            }
+          },
+          {
+            "Key":"Type",
+            "Value":"app_server"
+          },
+          {
+            "Key":"Stack",
+            "Value":{
+              "Ref":"AWS::StackName"
+            }
+          },
+          {
+            "Key":"Name",
+            "Value":"asap"
+          }
+        ]
+      }
+    },
+    "ASAPIAMRole":{
+      "Type":"AWS::IAM::Role",
+      "Properties":{
+        "AssumeRolePolicyDocument":{
+          "Version":"2012-10-17",
+          "Statement":[
+            {
+              "Effect":"Allow",
+              "Principal":{
+                "Service":[
+                  "ec2.amazonaws.com"
+                ]
+              },
+              "Action":[
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Policies":[
+          {
+            "PolicyName":"root",
+            "PolicyDocument":{
+              "Version":"2012-10-17",
+              "Statement":[
+                {
+                  "Action":[
+                    "sqs:Send*",
+                    "sqs:List*"
+                  ],
+                  "Effect":"Allow",
+                  "Resource":{
+                    "Fn::FindInMap":[
+                      "EnvironmentMap",
+                      {
+                        "Ref":"Environment"
+                      },
+                      "SQSQueueARN"
+                    ]
+                  }
+                },
+                {
+                  "Action":[
+                    "sqs:ListQueues",
+                    "sqs:GetQueueUrl",
+                    "ses:SendEmail"
+                  ],
+                  "Effect":"Allow",
+                  "Resource":"*"
+                },
+                {
+                  "Action":[
+                    "sts:AssumeRole"
+                  ],
+                  "Effect":"Allow",
+                  "Resource":"*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ASAPIAMInstanceProfile":{
+      "Type":"AWS::IAM::InstanceProfile",
+      "Properties":{
+        "Roles":[
+          {
+            "Ref":"ASAPIAMRole"
+          }
+        ]
+      }
+    },
+    "ASAPInstance":{
+      "Type":"AWS::EC2::Instance",
+      "Metadata":{
+        "AWS::CloudFormation::Init":{
+          "configSets":{
+            "ascending":[
+              "config1",
+              "config2",
+              "config3"
+            ]
+          },
+          "config1":{
+            "packages":{
+              "rpm":{
+                "chefdk":"https://packages.chef.io/stable/el/7/chefdk-0.16.28-1.el7.x86_64.rpm"
+              },
+              "yum":{
+                "git":[
+
+                ]
+              }
+            },
+            "commands":{
+              "createdirs":{
+                "command":{
+                  "Fn::Join":[
+                    " ",
+                    [
+                      "mkdir -v -p /opt/chef/nodes /etc/chef /etc/chef/ohai/hints",
+                      "2>&1 >> /var/log/initial_cfn-init.log\n"
+                    ]
+                  ]
+                }
+              }
+            }
+          },
+          "config2":{
+            "files":{
+              "/etc/chef/ohai/hints/ec2.json":{
+                "content":"{}",
+                "mode":"000644",
+                "owner":"root",
+                "group":"root"
+              },
+              "/etc/chef/client.rb":{
+                "content":{
+                  "Fn::Join":[
+                    "\n",
+                    [
+                      "cookbook_path [\"/opt/chef/cookbooks\"]",
+                      "log_level :info",
+                      "log_location \"/var/log/chef.log\" # or STDOUT",
+                      "verbose_logging true"
+                    ]
+                  ]
+                },
+                "mode":"000644",
+                "owner":"root",
+                "group":"root"
+              },
+              "/tmp/set-chef-secrets.py":{
+                "content":{
+                  "Fn::Join":[
+                    "\n",
+                    [
+                      "#!/usr/bin/python",
+                      "import random, string, sys, json",
+                      "def gen():",
+                      "  return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(32))",
+                      "with open(sys.argv[1], 'r+') as f:",
+                      "  data = json.load(f)",
+                      "  data['security_monkey']['secret_key'] = gen()",
+                      "  data['security_monkey']['password_salt'] = gen()",
+                      "  data['postgresql']['password']['postgres'] = gen()",
+                      "  f.seek(0)",
+                      "  f.write(json.dumps(data, indent=2, sort_keys=True))",
+                      "  f.truncate()"
+                    ]
+                  ]
+                },
+                "mode":"000755",
+                "owner":"root",
+                "group":"root"
+              },
+              "/opt/chef/nodes/node.json":{
+                "content":{
+                  "security_monkey":{
+                    "secret_key":"SET BY /tmp/set-chef-secrets.py",
+                    "password_salt":"SET BY /tmp/set-chef-secrets.py",
+                    "mail_sender":{
+                      "Fn::Join":[
+                        "",
+                        [
+                          "asap@",
+                          {
+                            "Fn::FindInMap":[
+                              "EnvironmentMap",
+                              {
+                                "Ref":"Environment"
+                              },
+                              "Zone"
+                            ]
+                          }
+                        ]
+                      ]
+                    },
+                    "security_team_email":{"Ref": "SecurityTeamEmail"},
+                    "branch":"dev",
+                    "additional_options":{
+                      "Fn::Join":[
+                        "",
+                        [
+                          "USE_SAML = True\n",
+                          "METADATA_URL = \"",
+                          {
+                            "Fn::FindInMap":[
+                              "EnvironmentMap",
+                              {
+                                "Ref":"Environment"
+                              },
+                              "SAMLMetaDataURL"
+                            ]
+                          },
+                          "\"\n",
+                          "ACS_URL_SCHEME=\"https\"\n",
+                          "SAML_IDP_NAME=\"mozilla\"\n",
+                          "SQS_QUEUE_ARN=\"",
+                          {
+                            "Fn::FindInMap":[
+                              "EnvironmentMap",
+                              {
+                                "Ref":"Environment"
+                              },
+                              "SQSQueueARN"
+                            ]
+                          },
+                          "\"\n"
+                        ]
+                      ]
+                    },
+                    "nginx":{
+                      "ssl_key":{
+                        "source":"self-signed",
+                        "content":""
+                      },
+                      "ssl_cert":{
+                        "source":"self-signed",
+                        "content":""
+                      }
+                    },
+                    "target_fqdn":{
+                      "Fn::Join":[
+                        "",
+                        [
+                          "asap.",
+                          {
+                            "Fn::FindInMap":[
+                              "EnvironmentMap",
+                              {
+                                "Ref":"Environment"
+                              },
+                              "Zone"
+                            ]
+                          }
+                        ]
+                      ]
+                    }
+                  },
+                  "postgresql":{
+                    "password":{
+                      "postgres":"SET BY /tmp/set-chef-secrets.py"
+                    },
+                    "version":"9.2",
+                    "dir":"/var/lib/pgsql/data",
+                    "client":{
+                      "packages":[
+                        "postgresql-devel"
+                      ]
+                    },
+                    "server":{
+                      "packages":[
+                        "postgresql-server"
+                      ],
+                      "service_name":"postgresql"
+                    },
+                    "contrib":{
+                      "packages":[
+                        "postgresql-contrib"
+                      ]
+                    }
+                  },
+                  "run_list":[
+                    "recipe[security-monkey::default]",
+                    "recipe[security-monkey::nginx]",
+                    "recipe[moz-security-monkey::default]"
+                  ]
+                },
+                "mode":"000600",
+                "owner":"root",
+                "group":"root"
+              }
+            }
+          },
+          "config3":{
+            "commands":{
+              "50_setup":{
+                "command":{
+                  "Fn::Join":[
+                    " 2>&1 >> /var/log/initial_cfn-init.log\n",
+                    [
+                      "python /tmp/set-chef-secrets.py /opt/chef/nodes/node.json",
+                      "git clone https://github.com/gene1wood/chef-security-monkey.git security-monkey && cd security-monkey",
+                      "git checkout 5c2e39632b6de40d3a1c3a4493d4268bce250186",
+                      "cd ~",
+                      "git clone https://github.com/gene1wood/moz-security-monkey.git moz-security-monkey && cd moz-security-monkey",
+                      "git checkout HEAD",
+                      "BERKSHELF_PATH=/root/.berkshelf HOME=/root berks install --berksfile=/root/security-monkey/Berksfile",
+                      "BERKSHELF_PATH=/root/.berkshelf HOME=/root berks vendor --berksfile=/root/security-monkey/Berksfile /opt/chef/cookbooks",
+                      "ln -s /root/security-monkey /opt/chef/cookbooks/security-monkey",
+                      "ln -s /root/moz-security-monkey/chef/cookbooks/moz-security-monkey /opt/chef/cookbooks/moz-security-monkey",
+                      "ln -s /root/moz-security-monkey/moz-security-monkey/manage.py /opt/secmonkey/moz_manage.py",
+                      "chmod 755 /opt/chef",
+                      "chef-client -z -c /etc/chef/client.rb -j /opt/chef/nodes/node.json --force-logger",
+                      " "
+                    ]
+                  ]
+                },
+                "cwd":"~"
+              }
+            }
+          }
+        }
+      },
+      "Properties":{
+        "IamInstanceProfile":{
+          "Ref":"ASAPIAMInstanceProfile"
+        },
+        "ImageId":{
+          "Fn::FindInMap":[
+            "RegionMap",
+            {
+              "Ref":"AWS::Region"
+            },
+            "CentOS7x8664withUpdatesHVM"
+          ]
+        },
+        "InstanceType":"m4.large",
+        "KeyName":{
+          "Ref":"SSHKeyName"
+        },
+        "SecurityGroups":[
+          {
+            "Ref":"ASAPSecurityGroup"
+          }
+        ],
+        "Tags":[
+          {
+            "Key":"App",
+            "Value":"asap"
+          },
+          {
+            "Key":"Env",
+            "Value":{
+              "Ref":"Environment"
+            }
+          },
+          {
+            "Key":"Type",
+            "Value":"app_server"
+          },
+          {
+            "Key":"Stack",
+            "Value":{
+              "Ref":"AWS::StackName"
+            }
+          },
+          {
+            "Key":"Name",
+            "Value":"asap"
+          }
+        ],
+        "UserData":{
+          "Fn::Base64":{
+            "Fn::Join":[
+              "",
+              [
+                "#cloud-config\n",
+                "\n",
+                "runcmd:\n",
+                " - for i in {1..3}; do /usr/bin/easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz 2>&1 >> /var/log/initial_user-data.log && break || sleep 10; done\n",
+                " - /usr/bin/cfn-init ",
+                "         --stack ",
+                {
+                  "Ref":"AWS::StackName"
+                },
+                "         --resource ASAPInstance ",
+                "         --configsets ascending ",
+                "         --region ",
+                {
+                  "Ref":"AWS::Region"
+                },
+                "         --verbose\n",
+                " - CFNSTATUS=$?\n",
+                " - /usr/bin/cfn-signal ",
+                "         --exit-code $CFNSTATUS ",
+                "'",
+                {
+                  "Ref":"ASAPWaitConditionHandle"
+                },
+                "'",
+                " 2>&1 >> /var/log/initial_user-data.log\n"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "ASAPWaitConditionHandle":{
+      "Type":"AWS::CloudFormation::WaitConditionHandle"
+    },
+    "ASAPWaitCondition":{
+      "Type":"AWS::CloudFormation::WaitCondition",
+      "DependsOn":"ASAPInstance",
+      "Properties":{
+        "Handle":{
+          "Ref":"ASAPWaitConditionHandle"
+        },
+        "Timeout":"900"
+      }
+    }
+  }
+}
