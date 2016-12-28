@@ -66,6 +66,12 @@
             "ToPort":"443"
           },
           {
+            "FromPort":"80",
+            "IpProtocol":"tcp",
+            "CidrIp":"0.0.0.0/0",
+            "ToPort":"80"
+          },
+          {
             "FromPort":"22",
             "IpProtocol":"tcp",
             "CidrIp":"0.0.0.0/0",
