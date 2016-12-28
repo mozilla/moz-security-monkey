@@ -39,3 +39,23 @@ template "/etc/cron.d/mozsecuritymonkey" do
   source "cron/mozsecuritymonkey"
   variables ({ :virtualenv => $virtualenv })
 end
+
+package "certbot"
+
+directory "/usr/share/nginx/html/.well-known"
+directory "/usr/share/nginx/html/.well-known/acme-challenge"
+
+execute "create certificate" do
+  command "certbot certonly --webroot --webroot-path /usr/share/nginx/html --text --non-interactive --domain #{node[:security_monkey][:target_fqdn]} --email #{node[:security_monkey][:security_team_email]} --agree-tos"
+  creates "/etc/letsencrypt/live/#{node[:security_monkey][:target_fqdn]}/fullchain.pem"
+end
+
+file "/etc/cron.daily/certbot" do
+  content "/bin/certbot renew --pre-hook "service nginx stop" --post-hook "service nginx start" > /var/log/certbot.log 2>&1\n"
+  mode "0755"
+end
+
+
+# TODO : figure out why http nginx doesn't really respond just hangs
+# TODO : Setup redirect to https for everything else
+
