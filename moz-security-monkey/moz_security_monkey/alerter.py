@@ -36,8 +36,10 @@ class Alerter(security_monkey.alerter.Alerter):
         """
         Collect change summaries from watchers defined and send out an email
         """
-        changed_watchers = [watcher_auditor[
-            0] for watcher_auditor in self.watchers_auditors if watcher_auditor[0].is_changed()]
+        changed_watchers = [
+            watcher_auditor[0]
+            for watcher_auditor
+            in self.watchers_auditors if watcher_auditor[0].is_changed()]
         has_issues = has_new_issue = has_unjustified_issue = False
         for watcher in changed_watchers:
             (has_issues, has_new_issue,
@@ -62,7 +64,176 @@ class Alerter(security_monkey.alerter.Alerter):
         subject = get_subject(
             has_issues, has_new_issue, has_unjustified_issue, self.account, watcher_str)
         if app.config.get('SQS_QUEUE_ARN'):
-            # For the time being we'll send the email body to mozdef : body
-            # In the future TODO we'll send the structured data
-            publish_to_mozdef(summary=subject, details={'subject': subject, 'body': body})
+            # Intentionally leaving out new_item.get_pdiff_html() as we
+            # don't need it
+            watchers = [
+                {'created_items': [
+                    {'account': new_item.account,
+                     'region': new_item.region,
+                     'name': new_item.name,
+                     'issues': {
+                         'new': [
+                             {'score': issue.score,
+                              'issue': issue.issue,
+                              'notes': issue.notes,
+                              'justification': {
+                                  'justified': issue.justified,
+                                  'user_name': (issue.user.name
+                                                if issue.user is not None
+                                                else None),
+                                  'user_email': (issue.user.email
+                                                 if issue.user is not None
+                                                 else None),
+                                  'date': issue.justified_date,
+                                  'justification': issue.justification}}
+                             for issue in new_item.confirmed_new_issues],
+                         'fixed': [
+                             {'score': issue.score,
+                              'issue': issue.issue,
+                              'notes': issue.notes,
+                              'justification': {
+                                  'justified': issue.justified,
+                                  'user_name': (issue.user.name
+                                                if issue.user is not None
+                                                else None),
+                                  'user_email': (issue.user.email
+                                                 if issue.user is not None
+                                                 else None),
+                                  'date': issue.justified_date,
+                                  'justification': issue.justification}}
+                             for issue in new_item.confirmed_fixed_issues],
+                         'existing': [
+                             {'score': issue.score,
+                              'issue': issue.issue,
+                              'notes': issue.notes,
+                              'justification': {
+                                  'justified': issue.justified,
+                                  'user_name': (issue.user.name
+                                                if issue.user is not None
+                                                else None),
+                                  'user_email': (issue.user.email
+                                                 if issue.user is not None
+                                                 else None),
+                                  'date': issue.justified_date,
+                                  'justification': issue.justification}}
+                             for issue in new_item.confirmed_existing_issues]
+                     }
+                     }
+                    for new_item in (watcher.created_items if
+                                     watcher.created() else [])],
+                 'changed_items': [
+                     {'account': new_item.account,
+                      'region': new_item.region,
+                      'name': new_item.name,
+                      'issues': {
+                          'new': [
+                              {'score': issue.score,
+                               'issue': issue.issue,
+                               'notes': issue.notes,
+                               'justification': {
+                                   'justified': issue.justified,
+                                   'user_name': (issue.user.name
+                                                 if issue.user is not None
+                                                 else None),
+                                   'user_email': (issue.user.email
+                                                  if issue.user is not None
+                                                  else None),
+                                   'date': issue.justified_date,
+                                   'justification': issue.justification}}
+                              for issue in new_item.confirmed_new_issues],
+                          'fixed': [
+                              {'score': issue.score,
+                               'issue': issue.issue,
+                               'notes': issue.notes,
+                               'justification': {
+                                   'justified': issue.justified,
+                                   'user_name': (issue.user.name
+                                                 if issue.user is not None
+                                                 else None),
+                                   'user_email': (issue.user.email
+                                                  if issue.user is not None
+                                                  else None),
+                                   'date': issue.justified_date,
+                                   'justification': issue.justification}}
+                              for issue in new_item.confirmed_fixed_issues],
+                          'existing': [
+                              {'score': issue.score,
+                               'issue': issue.issue,
+                               'notes': issue.notes,
+                               'justification': {
+                                   'justified': issue.justified,
+                                   'user_name': (issue.user.name
+                                                 if issue.user is not None
+                                                 else None),
+                                   'user_email': (issue.user.email
+                                                  if issue.user is not None
+                                                  else None),
+                                   'date': issue.justified_date,
+                                   'justification': issue.justification}}
+                              for issue in new_item.confirmed_existing_issues]
+                      }
+                      }
+                     for new_item in (watcher.changed_items if
+                                      watcher.changed() else [])],
+
+                 'deleted_items': [
+                     {'account': new_item.account,
+                      'region': new_item.region,
+                      'name': new_item.name,
+                      'issues': {
+                          'new': [
+                              {'score': issue.score,
+                               'issue': issue.issue,
+                               'notes': issue.notes,
+                               'justification': {
+                                   'justified': issue.justified,
+                                   'user_name': (issue.user.name
+                                                 if issue.user is not None
+                                                 else None),
+                                   'user_email': (issue.user.email
+                                                  if issue.user is not None
+                                                  else None),
+                                   'date': issue.justified_date,
+                                   'justification': issue.justification}}
+                              for issue in new_item.confirmed_new_issues],
+                          'fixed': [
+                              {'score': issue.score,
+                               'issue': issue.issue,
+                               'notes': issue.notes,
+                               'justification': {
+                                   'justified': issue.justified,
+                                   'user_name': (issue.user.name
+                                                 if issue.user is not None
+                                                 else None),
+                                   'user_email': (issue.user.email
+                                                  if issue.user is not None
+                                                  else None),
+                                   'date': issue.justified_date,
+                                   'justification': issue.justification}}
+                              for issue in new_item.confirmed_fixed_issues],
+                          'existing': [
+                              {'score': issue.score,
+                               'issue': issue.issue,
+                               'notes': issue.notes,
+                               'justification': {
+                                   'justified': issue.justified,
+                                   'user_name': (issue.user.name
+                                                 if issue.user is not None
+                                                 else None),
+                                   'user_email': (issue.user.email
+                                                  if issue.user is not None
+                                                  else None),
+                                   'date': issue.justified_date,
+                                   'justification': issue.justification}}
+                              for issue in new_item.confirmed_existing_issues]
+                      }
+                      }
+                     for new_item in (watcher.deleted_items if
+                                      watcher.deleted() else [])]
+                 }
+                for watcher in
+                changed_watchers]
+            publish_to_mozdef(summary=subject,
+                              details={'subject': subject,
+                                       'watchers': watchers})
         return send_email(subject=subject, recipients=self.emails, html=body)

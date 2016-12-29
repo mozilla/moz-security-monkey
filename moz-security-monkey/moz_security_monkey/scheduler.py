@@ -17,7 +17,7 @@ from security_monkey.datastore import Account
 from moz_security_monkey.monitors import all_monitors, get_monitor
 from moz_security_monkey.reporter import Reporter
 
-from security_monkey import app, handler
+from security_monkey import app, db, handler
 
 import traceback
 import logging
@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 
 from security_monkey.scheduler import __prep_accounts__
 from security_monkey.scheduler import _find_changes
-from security_monkey.scheduler import _audit_changes
+# from security_monkey.scheduler import _audit_changes
 from security_monkey.scheduler import pool
 from security_monkey.scheduler import scheduler
 from moz_security_monkey.common.utils.utils import publish_to_mozdef
@@ -59,6 +59,60 @@ def audit_changes(accounts, monitor_names, send_report, debug=True):
             auditors.append(monitor.auditor_class(accounts=accounts, debug=True))
     if auditors:
         _audit_changes(accounts, auditors, send_report, debug)
+
+def _audit_changes(accounts, auditors, send_report, debug=True):
+    """ Runs auditors on all items """
+    for au in auditors:
+        au.audit_all_objects()
+        if send_report:
+
+            for item in au.items:
+                item.totalscore = 0
+                for issue in item.audit_issues:
+                    item.totalscore = item.totalscore + issue.score
+            sorted_list = sorted(au.items, key=lambda item: item.totalscore)
+            sorted_list.reverse()
+            report_list = []
+            for item in sorted_list:
+                if item.totalscore > 0:
+                    report_list.append(item)
+                else:
+                    break
+            if len(report_list) > 0:
+                subject = "Security Monkey {} Auditor Report".format(
+                    au.i_am_singular)
+                audit_report = [
+                    {'account': item.account,
+                     'region': item.region,
+                     'index': item.index,
+                     'name': item.name,
+                     'totalscore': item.totalscore,
+                     'audit_issues': [
+                         {'score': issue.score,
+                          'issue': issue.issue,
+                          'notes': issue.notes,
+                          'justification': {
+                              'justified': issue.justified,
+                              'user_name': (issue.user.name
+                                            if issue.user is not None
+                                            else None),
+                              'user_email': (issue.user.email
+                                             if issue.user is not None
+                                             else None),
+                              'date': issue.justified_date,
+                              'justification': issue.justification}}
+                         for issue in item.audit_issues]}
+                    for item in report_list]
+                result = publish_to_mozdef(
+                    summary=subject,
+                    details={'subject': subject,
+                             'audit_report': audit_report})
+                app.logger.info(
+                    "Auditor report published to MozDef with {} "
+                    "entries.".format(len(report_list)))
+        au.save_issues()
+    db.session.close()
+
 
 def setup_scheduler():
     """Sets up the APScheduler"""
