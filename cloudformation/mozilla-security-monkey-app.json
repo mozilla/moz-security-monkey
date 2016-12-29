@@ -158,6 +158,20 @@
                 },
                 {
                   "Action":[
+                    "s3:ListBucket"
+                  ],
+                  "Effect":"Allow",
+                  "Resource":"arn:aws:s3:::infosec-internal-data"
+                },
+                {
+                  "Action":[
+                    "s3:GetObject"
+                  ],
+                  "Effect":"Allow",
+                  "Resource":"arn:aws:s3:::infosec-internal-data/*"
+                },
+                {
+                  "Action":[
                     "sts:AssumeRole"
                   ],
                   "Effect":"Allow",

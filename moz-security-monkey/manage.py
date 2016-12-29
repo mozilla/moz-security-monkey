@@ -97,5 +97,59 @@ def add_accounts(filename):
             else:
                 app.logger.info('Account with id {} already exists'.format(number))
 
+@manager.option('-b', '--bucket', dest='bucket', type=unicode, default=u'infosec-internal-data')
+@manager.option('-k', '--key', dest='key', type=unicode, default=u'iam-roles/roles.json')
+@manager.option('-t', '--trusted_entity', dest='trusted_entity', type=unicode, default=u'arn:aws:iam::371522382791:root')
+@manager.option('-r', '--role_type', dest='role_type', type=unicode, default=u'InfosecSecurityAuditRole')
+def add_all_accounts(bucket, key, trusted_entity, role_type):
+    import boto3, json, botocore.exceptions
+    from security_monkey.common.utils.utils import add_account
+
+    # TODO : Convert this to boto instead of boto3
+    # TODO : Describe json schema here
+    client = boto3.client('s3')
+    response = client.get_object(
+        Bucket=bucket,
+        Key=key)
+    roles = json.load(response['Body'])
+
+    for role in [x for x in roles if
+                 x['TrustedEntity'] == trusted_entity
+                 and x['Type'] == role_type]:
+        session = boto3.Session()
+        client_sts = session.client('sts')
+        try:
+            response_sts = client_sts.assume_role(
+                RoleArn=role['Arn'],
+                RoleSessionName='fetch_aliases')
+        except botocore.exceptions.ClientError:
+            print('Unable to assume role {}'.format(role['Arn']))
+            continue
+        credentials = {
+            'aws_access_key_id': response_sts['Credentials']['AccessKeyId'],
+            'aws_secret_access_key': response_sts['Credentials'][
+                'SecretAccessKey'],
+            'aws_session_token': response_sts['Credentials']['SessionToken']}
+        client_iam = boto3.client('iam', **credentials)
+        response_iam = client_iam.list_account_aliases()
+        alias = response_iam['AccountAliases'][0] if len(
+            response_iam['AccountAliases']) == 1 else str(
+            role['Arn'].split(':')[4])
+        params = {
+            'number': role['Arn'].split(':')[4],
+            'third_party': False,
+            'name': alias[:32],
+            's3_name': u'',
+            'active': True,
+            'notes': alias,
+            'role_name': role['Arn'].split(':')[5].split('/')[1]
+        }
+        print(json.dumps(params))
+        result = add_account(**params)
+        if result:
+            print('Successfully added account {}'.format(params['name']))
+        else:
+            print('Account with id {} already exists'.format(params['number']))
+
 if __name__ == "__main__":
     manager.run()
