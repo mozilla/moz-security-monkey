@@ -22,7 +22,7 @@ from flask.ext.migrate import Migrate, MigrateCommand
 from moz_security_monkey.scheduler import run_change_reporter as sm_run_change_reporter
 from moz_security_monkey.scheduler import find_changes as sm_find_changes
 from moz_security_monkey.scheduler import audit_changes as sm_audit_changes
-from security_monkey.backup import backup_config_to_json as sm_backup_config_to_json
+from moz_security_monkey.backup import backup_config_to_json as sm_backup_config_to_json
 
 import csv
 
@@ -59,6 +59,14 @@ def find_changes(accounts, monitors):
 def audit_changes(accounts, monitors, send_report):
     """ Runs auditors """
     sm_audit_changes(accounts, monitors, send_report)
+
+
+@manager.option('-a', '--accounts', dest='accounts', type=unicode, default=u'all')
+@manager.option('-m', '--monitors', dest='monitors', type=unicode, default=u'all')
+@manager.option('-o', '--outputfolder', dest='outputfolder', type=unicode, default=u'backups')
+def backup_config_to_json(accounts, monitors, outputfolder):
+    """Saves the most current item revisions to a json file."""
+    sm_backup_config_to_json(accounts, monitors, outputfolder)
 
 
 @manager.command
