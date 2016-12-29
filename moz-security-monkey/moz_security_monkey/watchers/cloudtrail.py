@@ -58,7 +58,7 @@ class CloudTrail(Watcher):
                         cloudtrail = cloudtrails[0]
                         cloudtrail_status = self.wrap_aws_rate_limited_call(
                             cloudtrailconn.get_trail_status,
-                            name
+                            cloudtrail['Name']
                         )
                     else:
                         cloudtrail = {}
@@ -91,7 +91,7 @@ class CloudTrail(Watcher):
                 item = CloudTrailItem(region=region.name,
                                       account=account,
                                       name=cloudtrail.get('Name', 'Not Enabled'),
-                                      config=cloudtrail)
+                                      config=item_config)
                 item_list.append(item)
                     
         return item_list, exception_map
