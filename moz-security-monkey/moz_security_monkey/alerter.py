@@ -26,29 +26,9 @@ from security_monkey.datastore import User
 from security_monkey.common.utils.utils import send_email
 from security_monkey.alerter import get_subject, report_content
 import security_monkey.alerter
-import mozdef_client
 import jinja2
 import os.path
-
-
-def publish_to_mozdef(summary='',
-                      details={}):
-    msg = mozdef_client.MozDefEvent('')
-    msg.summary = summary
-    msg.tags = ['asap']
-    msg.details = details
-    region, account_id, queue_name = app.config.get(
-        'SQS_QUEUE_ARN').split(':')[3:]
-
-    msg.set_send_to_sqs(True)
-    msg.set_sqs_queue_name(queue_name)
-    msg.set_sqs_region(region)
-    msg.set_sqs_aws_account_id(account_id)
-    # Note that unlike syslog this will NEVER send to MozDef HTTP (URL is
-    # ignored)
-    app.logger.debug("Alerter: Sending message to SQS queue {} in account {} in region {}".format(queue_name, account_id, region))
-    msg.send()
-
+from moz_security_monkey.common.utils.utils import publish_to_mozdef
 
 class Alerter(security_monkey.alerter.Alerter):
 

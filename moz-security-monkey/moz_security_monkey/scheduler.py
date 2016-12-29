@@ -28,6 +28,7 @@ from security_monkey.scheduler import _find_changes
 from security_monkey.scheduler import _audit_changes
 from security_monkey.scheduler import pool
 from security_monkey.scheduler import scheduler
+from moz_security_monkey.common.utils.utils import publish_to_mozdef
 
 def __prep_monitor_names__(monitor_names):
     if monitor_names == 'all':
