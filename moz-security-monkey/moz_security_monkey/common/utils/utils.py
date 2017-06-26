@@ -11,14 +11,23 @@
 from security_monkey import app
 import botocore.exceptions, botocore.parsers
 import mozdef_client
+from datetime import datetime
+import json
 
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+
+    if isinstance(obj, datetime):
+        serial = obj.isoformat()
+        return serial
+    raise TypeError("Type not serializable")
 
 def publish_to_mozdef(summary='',
                       details={}):
     msg = mozdef_client.MozDefEvent('')
     msg.summary = summary
     msg.tags = ['asap']
-    msg.details = details
+    msg.details = json.loads(json.dumps(details, default=json_serial))
     region, account_id, queue_name = app.config.get(
         'SQS_QUEUE_ARN').split(':')[3:]
 
