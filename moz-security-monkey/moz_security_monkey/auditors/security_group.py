@@ -9,7 +9,8 @@
 
 from security_monkey.auditors.security_group import SecurityGroupAuditor
 
-ENABLED_CHECKS = ['check_securitygroup_large_port_range']
+# ENABLED_CHECKS = ['check_securitygroup_large_port_range']
+ENABLED_CHECKS = []
 
 def _pass_method(*args, **kwargs):
     pass
