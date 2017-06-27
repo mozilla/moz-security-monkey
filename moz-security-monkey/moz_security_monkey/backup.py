@@ -24,6 +24,6 @@ from moz_security_monkey.monitors import all_monitors, get_monitor
 from security_monkey.datastore import Item, ItemRevision, Account, Technology
 import json
 import os
-from security_monkey import __prep_accounts__, __prep_monitor_names__
-from security_monkey import backup_config_to_json, _backup_items_in_account
-from security_monkey import standardize_name, _serialize_item_to_file
+from security_monkey.backup import __prep_accounts__, __prep_monitor_names__
+from security_monkey.backup import backup_config_to_json, _backup_items_in_account
+from security_monkey.backup import standardize_name, _serialize_item_to_file
