@@ -1,5 +1,5 @@
 """
-.. module: security_monkey.auditors.cloudtrail
+.. module: security_monkey.auditors.route53
     :platform: Unix
 
 .. version:: $$VERSION$$

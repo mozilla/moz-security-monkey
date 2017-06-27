@@ -14,6 +14,7 @@ from security_monkey.watchers.iam.iam_user import IAMUser
 from moz_security_monkey.watchers.iam.iam_account import IAMAccount
 from security_monkey.watchers.iam.managed_policy import ManagedPolicy
 from moz_security_monkey.watchers.cloudtrail import CloudTrail
+from moz_security_monkey.watchers.route53 import Route53
 
 
 from security_monkey.auditors.iam.iam_user import IAMUserAuditor
@@ -44,6 +45,7 @@ from security_monkey.watchers.vpc.vpc import VPC
 from security_monkey.watchers.vpc.subnet import Subnet
 from security_monkey.watchers.vpc.route_table import RouteTable
 from moz_security_monkey.auditors.cloudtrail import CloudTrailAuditor
+from moz_security_monkey.auditors.route53 import Route53Auditor
 
 from security_monkey.monitors import Monitor
 
@@ -56,6 +58,8 @@ __MONITORS = {
         Monitor(IAMAccount.index, IAMAccount, IAMAccountAuditor),
     CloudTrail.index:
         Monitor(CloudTrail.index, CloudTrail, CloudTrailAuditor),
+    Route53.index:
+        Monitor(Route53.index, Route53, Route53Auditor),
 }
 
 __ORIGINAL_MONITORS = {
