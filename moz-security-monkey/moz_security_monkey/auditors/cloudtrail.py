@@ -17,24 +17,32 @@ class CloudTrailAuditor(Auditor):
     def __init__(self, accounts=None, debug=False):
         super(CloudTrailAuditor, self).__init__(accounts=accounts, debug=debug)
 
-    def check_cloudtrail_exists(self, cloudtrail_item):
+    def check_conforming_cloudtrail_exists(self, cloudtrail_item):
         """
-        alert when a region does not have a CloudTrail.
+        alert when a fake security monkey cloudtrail item exists indicating
+        that a given region has no valid conforming cloudtrail configured
         """
-        cloudtrail_exists = cloudtrail_item.config.get('exists', False)
-        if not cloudtrail_exists:
-            self.add_issue(10, "CloudTrail doesn't exist.", cloudtrail_item)
-
-    def check_cloudtrail_is_logging(self, cloudtrail_item):
-        """
-        alert when a region's CloudTrail isn't logging.
-        """
-        cloudtrail_is_logging = cloudtrail_item.config.get('is_logging', False)
-        cloudtrail_exists = cloudtrail_item.config.get('exists', False)
-        if cloudtrail_exists and not cloudtrail_is_logging:
-            notes = ('CloudTrail logging was most recently disabled at %s.' % 
-                     cloudtrail_item.config.get('last_stop_datetime', 'an unknown time'))
-            self.add_issue(10, 'CloudTrail logging is disabled.', cloudtrail_item, notes)
-
-    # TODO : Create an auditor that detects if no region has include_global_service_events
-    # enabled and as a result IAM API calls aren't being recorded.
+        if cloudtrail_item.config.get('exists', False):
+            if cloudtrail_item.config.get('name') == 'NoneExists':
+                self.add_issue(
+                    10, "CloudTrail doesn't exist.",
+                    cloudtrail_item,
+                    'No API logs are being written in this region as no '
+                    'CloudTrail exists')
+            if cloudtrail_item.config.get('name') == 'NoConformingCloudTrailExists':
+                self.add_issue(
+                    10,
+                    "A CloudTrail exists but it does not conform",
+                    cloudtrail_item,
+                    "Though a CloudTrail exists in the region it either "
+                    "isn't logging, is encrypting the logs, isn't writing to "
+                    "the expected bucket or isn't notifying the expected SNS "
+                    "topic")
+            if cloudtrail_item.config.get('name') == 'NoGlobalServiceEventTrailExists':
+                self.add_issue(10,
+                               "No CloudTrail is logging Global Service "
+                               "Events",
+                               cloudtrail_item,
+                               "Across all regions, there is no CloudTrail "
+                               "which is logging Global Service Events for "
+                               "example IAM events")

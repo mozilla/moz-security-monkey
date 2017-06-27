@@ -20,6 +20,9 @@ class CloudTrail(Watcher):
     i_am_singular = 'CloudTrail'
     i_am_plural = 'CloudTrails'
 
+    MOZILLA_CLOUDTRAIL_S3_BUCKET = 'mozilla-cloudtrail-logs'
+    MOZILLA_CLOUDTRAIL_SNS_TOPIC_ARN = 'arn:aws:sns:us-west-2:088944123687:MozillaCloudTrailLogs'
+
     def __init__(self, accounts=None, debug=False):
         super(CloudTrail, self).__init__(accounts=accounts, debug=debug)
 
@@ -43,57 +46,113 @@ class CloudTrail(Watcher):
                 self.slurp_exception((self.index, account), exc, exception_map)
                 continue
 
+            global_service_cloudtrail_found = False
             for region in regions:
-                app.logger.debug("Checking {}/{}/{}".format(self.index, account, region.name))
+                app.logger.debug("Checking {}/{}/{}".format(
+                    self.index, account, region.name))
 
                 try:
-                    cloudtrailconn = connect(account, 'cloudtrail', region=region)
+                    cloudtrailconn = connect(
+                        account, 'cloudtrail', region=region)
                    
                     cloudtrail_response = self.wrap_aws_rate_limited_call(
                         cloudtrailconn.describe_trails
                     )
                     cloudtrails = cloudtrail_response['trailList']
-                    
-                    if len(cloudtrails) == 1:
-                        cloudtrail = cloudtrails[0]
-                        cloudtrail_status = self.wrap_aws_rate_limited_call(
-                            cloudtrailconn.get_trail_status,
-                            cloudtrail['Name']
-                        )
-                    else:
-                        cloudtrail = {}
-                        cloudtrail_status = {}
 
                 except Exception as e:
-                    exc = BotoConnectionIssue(str(e), self.index, account, region.name)
-                    self.slurp_exception((self.index, account, region.name), exc, exception_map)
+                    exc = BotoConnectionIssue(
+                        str(e), self.index, account, region.name)
+                    self.slurp_exception(
+                        (self.index, account, region.name), exc, exception_map)
                     continue
 
-                app.logger.debug("Found {} {}".format(len(cloudtrails), self.i_am_plural))
+                app.logger.debug("Found {} {}".format(len(cloudtrails),
+                                                      self.i_am_plural))
+                if len(cloudtrails) == 0:
+                    item = CloudTrailItem(region=region.name,
+                                          account=account,
+                                          name='NoneExists',
+                                          config={'exists': False})
+                    item_list.append(item)
+                    continue
 
-                item_config = {
-                    'exists': ('Name' in cloudtrail),
-                    'is_logging': cloudtrail_status.get('IsLogging'),
-                    'last_stop_datetime': cloudtrail_status.get('StopLoggingTime'),
-                    'last_start_datetime': cloudtrail_status.get('StartLoggingTime'),
-                    'last_sns_error': cloudtrail_status.get('LatestNotificationError'),
-                    'last_s3_error': cloudtrail_status.get('LatestDeliveryError'),
-                    'last_cloudwatch_error': cloudtrail_status.get('LatestCloudWatchLogsDeliveryError'),
-                    'cloudwatch_logs_loggroup_arn': cloudtrail.get('CloudWatchLogsLogGroupArn'),
-                    'cloudwatch_logs_role_arn': cloudtrail.get('CloudWatchLogsRoleArn'),
-                    'cloudwatch_logs_role_arn': cloudtrail.get('CloudWatchLogsRoleArn'),
-                    'include_global_service_events': cloudtrail.get('IncludeGlobalServiceEvents'),
-                    's3_bucket_name': cloudtrail.get('S3BucketName'),
-                    's3_key_prefix': cloudtrail.get('S3KeyPrefix'),
-                    'sns_topic_name': cloudtrail.get('SnsTopicName'),
-                }
+                # Even though this is behavior you'd see in an auditor,
+                # this is the only way I can think of to look for the
+                # absence of a conforming cloudtrail in a given region
+                conforming_cloudtrail_found = False
+                for cloudtrail in cloudtrails:
+                    try:
+                        cloudtrail_status = self.wrap_aws_rate_limited_call(
+                            cloudtrailconn.get_trail_status,
+                            cloudtrail['TrailARN']
+                        )
+                    except Exception as e:
+                        exc = BotoConnectionIssue(str(e), self.index, account,
+                                                  region.name)
+                        self.slurp_exception(
+                            (self.index, account, region.name), exc,
+                            exception_map)
+                        continue
 
-                item = CloudTrailItem(region=region.name,
+                    item_config = {
+                        'exists': True,
+                        'is_logging': cloudtrail_status.get('IsLogging'),
+                        'last_stop_datetime': cloudtrail_status.get('StopLoggingTime'),
+                        'last_start_datetime': cloudtrail_status.get('StartLoggingTime'),
+                        'last_sns_error': cloudtrail_status.get('LatestNotificationError'),
+                        'last_s3_error': cloudtrail_status.get('LatestDeliveryError'),
+                        'last_cloudwatch_error': cloudtrail_status.get('LatestCloudWatchLogsDeliveryError'),
+                        'cloudwatch_logs_loggroup_arn': cloudtrail.get('CloudWatchLogsLogGroupArn'),
+                        'cloudwatch_logs_role_arn': cloudtrail.get('CloudWatchLogsRoleArn'),
+                        'include_global_service_events': cloudtrail.get('IncludeGlobalServiceEvents'),
+                        'is_multi_region_trail': cloudtrail.get('IsMultiRegionTrail'),
+                        'kms_key_id': cloudtrail.get('KmsKeyId'),
+                        's3_bucket_name': cloudtrail.get('S3BucketName'),
+                        's3_key_prefix': cloudtrail.get('S3KeyPrefix'),
+                        'sns_topic_name': cloudtrail.get('SnsTopicName'),
+                        'sns_topic_arn': cloudtrail.get('SnsTopicArn'),
+                        'trail_arn': cloudtrail.get('TrailArn')
+                    }
+
+                    item = CloudTrailItem(region=region.name,
+                                          account=account,
+                                          name=cloudtrail.get(
+                                              'Name', 'Unknown'),
+                                          config=item_config)
+                    item_list.append(item)
+                    if item_config['include_global_service_events']:
+                        global_service_cloudtrail_found = True
+
+                    # Test if the trail is
+                    #   actually logging
+                    #   not encrypting the resulting logs
+                    #   notifying the MOZILLA_CLOUDTRAIL_SNS_TOPIC_ARN topic
+                    #   writing to the MOZILLA_CLOUDTRAIL_S3_BUCKET bucket
+                    if (item_config['is_logging'] and
+                        item_config['kms_key_id'] is None and
+                        item_config['sns_topic_arn'] ==
+                                self.MOZILLA_CLOUDTRAIL_SNS_TOPIC_ARN and
+                        item_config['s3_bucket_name'] ==
+                                self.MOZILLA_CLOUDTRAIL_S3_BUCKET):
+                        conforming_cloudtrail_found = True
+                if not conforming_cloudtrail_found:
+                    # No CloudTrail was found in this region that conforms to
+                    # the requirements
+                    item = CloudTrailItem(region='universal',
+                                          account=account,
+                                          name='NoConformingCloudTrailExists',
+                                          config={'exists': False})
+                    item_list.append(item)
+
+            if not global_service_cloudtrail_found:
+                # No region is logging Global Service Events
+                item = CloudTrailItem(region='universal',
                                       account=account,
-                                      name=cloudtrail.get('Name', 'Not Enabled'),
-                                      config=item_config)
+                                      name='NoGlobalServiceEventTrailExists',
+                                      config={'exists': False})
                 item_list.append(item)
-                    
+
         return item_list, exception_map
 
 
@@ -105,4 +164,3 @@ class CloudTrailItem(ChangeItem):
             account=account,
             name=name,
             new_config=config)
-
