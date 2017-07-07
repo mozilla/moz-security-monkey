@@ -7,11 +7,15 @@ bash "install_moz_security_monkey" do
   #user "#{node['security_monkey']['user']}"
   user "root"
   umask "022"
-  cwd "/root/moz-security-monkey/moz-security-monkey/"
+  cwd "/opt/moz-security-monkey/moz-security-monkey/"
   code <<-EOF
   #{$virtualenv}/bin/python setup.py install
   EOF
   action :run
+end
+
+link '/opt/secmonkey/moz_manage.py' do
+  to '/opt/moz-security-monkey/moz-security-monkey/manage.py'
 end
 
 template "#{node['security_monkey']['basedir']}/supervisor/moz_security_monkey.ini" do
@@ -51,7 +55,8 @@ execute "create certificate" do
 end
 
 file "/etc/cron.daily/certbot" do
-  content "/bin/certbot renew --pre-hook "service nginx stop" --post-hook "service nginx start" > /var/log/certbot.log 2>&1\n"
+  # content "/bin/certbot renew --pre-hook "service nginx stop" --post-hook "service nginx start" > /var/log/certbot.log 2>&1\n"
+  content "/bin/certbot renew --post-hook "service nginx restart" > /var/log/certbot.log 2>&1\n"
   mode "0755"
 end
 
