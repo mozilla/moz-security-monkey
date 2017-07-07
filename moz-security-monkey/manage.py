@@ -23,6 +23,8 @@ from moz_security_monkey.scheduler import run_change_reporter as sm_run_change_r
 from moz_security_monkey.scheduler import find_changes as sm_find_changes
 from moz_security_monkey.scheduler import audit_changes as sm_audit_changes
 from moz_security_monkey.backup import backup_config_to_json as sm_backup_config_to_json
+from security_monkey.datastore import Account
+from security_monkey.datastore import User
 
 import csv
 
@@ -97,11 +99,17 @@ def add_accounts(filename):
             else:
                 app.logger.info('Account with id {} already exists'.format(number))
 
-@manager.option('-b', '--bucket', dest='bucket', type=unicode, default=u'infosec-internal-data')
-@manager.option('-k', '--key', dest='key', type=unicode, default=u'iam-roles/roles.json')
-@manager.option('-t', '--trusted_entity', dest='trusted_entity', type=unicode, default=u'arn:aws:iam::371522382791:root')
-@manager.option('-r', '--role_type', dest='role_type', type=unicode, default=u'InfosecSecurityAuditRole')
-def add_all_accounts(bucket, key, trusted_entity, role_type):
+@manager.option('-b', '--bucket', type=unicode,
+                default=u'infosec-internal-data')
+@manager.option('--role-file', type=unicode,
+                default=u'iam-roles/roles.json')
+@manager.option('--alias-file', type=unicode,
+                default=u'iam-roles/account-aliases.json')
+@manager.option('-t', '--trusted-entity', type=unicode,
+                default=u'arn:aws:iam::371522382791:root')
+@manager.option('-r', '--role-type', type=unicode,
+                default=u'InfosecSecurityAuditRole')
+def add_all_accounts(bucket, role_file, alias_file, trusted_entity, role_type):
     import boto3, json, botocore.exceptions
     from security_monkey.common.utils.utils import add_account
 
@@ -110,12 +118,18 @@ def add_all_accounts(bucket, key, trusted_entity, role_type):
     client = boto3.client('s3')
     response = client.get_object(
         Bucket=bucket,
-        Key=key)
+        Key=role_file)
     roles = json.load(response['Body'])
+
+    response = client.get_object(
+        Bucket=bucket,
+        Key=alias_file)
+    aliases = json.load(response['Body'])
 
     for role in [x for x in roles if
                  x['TrustedEntity'] == trusted_entity
                  and x['Type'] == role_type]:
+        account_id = role['Arn'].split(':')[4]
         session = boto3.Session()
         client_sts = session.client('sts')
         try:
@@ -132,9 +146,12 @@ def add_all_accounts(bucket, key, trusted_entity, role_type):
             'aws_session_token': response_sts['Credentials']['SessionToken']}
         client_iam = boto3.client('iam', **credentials)
         response_iam = client_iam.list_account_aliases()
-        alias = response_iam['AccountAliases'][0] if len(
-            response_iam['AccountAliases']) == 1 else str(
-            role['Arn'].split(':')[4])
+        if len(response_iam['AccountAliases']) == 1:
+            alias = response_iam['AccountAliases'][0]
+        elif account_id in aliases:
+            alias = aliases[account_id]
+        else:
+            alias = account_id
         params = {
             'number': role['Arn'].split(':')[4],
             'third_party': False,
@@ -144,12 +161,41 @@ def add_all_accounts(bucket, key, trusted_entity, role_type):
             'notes': alias,
             'role_name': role['Arn'].split(':')[5].split('/')[1]
         }
-        print(json.dumps(params))
+        # print(json.dumps(params))
         result = add_account(**params)
         if result:
-            print('Successfully added account {}'.format(params['name']))
+            print('Successfully added account {}:{}'.format(
+                params['name'], params['number']))
         else:
             print('Account with id {} already exists'.format(params['number']))
+
+@manager.option('-a', '--accounts', dest='account_numbers', type=unicode,
+                default=u'all')
+def remove_accounts(account_numbers):
+    accounts = Account.query.filter(
+        Account.third_party == False).filter(Account.active == True).all()
+    if account_numbers == 'all':
+        account_ids = [account.id for account in accounts]
+    else:
+        account_ids = [account.id for account in accounts
+                       if account.number in account_numbers.split(',')]
+    for account_id in account_ids:
+        users = User.query.filter(User.accounts.any(Account.id == account_id)).all()
+        for user in users:
+            user.accounts = [account for account in user.accounts if not account.id == account_id]
+            db.session.add(user)
+        db.session.commit()
+
+        account = Account.query.filter(Account.id == account_id).first()
+
+        print("Deleting account {}".format(account.name))
+        db.session.delete(account)
+        db.session.commit()
+
+        # query = Account.query.filter(Account.number == account)
+        # if query.count():
+        #     print("Deleting account {}".format(accounts))
+        #     query.delete()
 
 if __name__ == "__main__":
     manager.run()
