@@ -23,6 +23,7 @@ from moz_security_monkey.scheduler import run_change_reporter as sm_run_change_r
 from moz_security_monkey.scheduler import find_changes as sm_find_changes
 from moz_security_monkey.scheduler import audit_changes as sm_audit_changes
 from moz_security_monkey.backup import backup_config_to_json as sm_backup_config_to_json
+from moz_security_monkey.common.utils.utils import prep_accounts
 from security_monkey.datastore import Account
 from security_monkey.datastore import User
 
@@ -109,7 +110,9 @@ def add_accounts(filename):
                 default=u'arn:aws:iam::371522382791:root')
 @manager.option('-r', '--role-type', type=unicode,
                 default=u'InfosecSecurityAuditRole')
-def add_all_accounts(bucket, role_file, alias_file, trusted_entity, role_type):
+@manager.option('--third-party-file', type=unicode,
+                default=u'iam-roles/third-party-aws-accounts.json')
+def add_all_accounts(bucket, role_file, alias_file, trusted_entity, role_type, third_party_file):
     import boto3, json, botocore.exceptions
     from security_monkey.common.utils.utils import add_account
 
@@ -168,6 +171,29 @@ def add_all_accounts(bucket, role_file, alias_file, trusted_entity, role_type):
                 params['name'], params['number']))
         else:
             print('Account with id {} already exists'.format(params['number']))
+
+    response = client.get_object(
+        Bucket=bucket,
+        Key=third_party_file)
+    third_parties = json.load(response['Body'])
+
+    for account in third_parties:
+        params = {
+            'number': account,
+            'third_party': True,
+            'name': third_parties[account]['name'],
+            's3_name': u'',
+            'active': False,
+            'notes': third_parties[account]['documentation'],
+            'role_name': u''
+        }
+        result = add_account(**params)
+        if result:
+            print('Successfully added third party account {}:{}'.format(
+                params['name'], params['number']))
+        else:
+            print('Third party account {} already exists'.format(params['name']))
+
 
 @manager.option('-a', '--accounts', dest='account_numbers', type=unicode,
                 default=u'all')
