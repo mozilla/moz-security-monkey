@@ -32,6 +32,7 @@ from security_monkey import app
 #
 # https://github.com/nahamsec/HostileSubBruteforcer/blob/master/PerlHostileSubBruteforcer/HostileBruteForceScanner.pl
 # https://labs.detectify.com/2014/10/21/hostile-subdomain-takeover-using-herokugithubdesk-more/
+# https://github.com/antichown/subdomain-takeover/blob/f7bf89d1cff0e2231e81085a0a0b62849b13ee0d/takeover.py#L73-L131
 
 
 class Route53(Watcher):
