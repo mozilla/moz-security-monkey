@@ -184,7 +184,7 @@ When initially starting you get
 
     mozsecuritymonkeyscheduler       FATAL     Exited too quickly (process log may have details)
     
-because there are no accounts loaded. See sSetting it up above
+because there are no accounts loaded. See Setting it up above
 
 ## TODO
 
