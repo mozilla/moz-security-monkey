@@ -20,6 +20,7 @@
 
 """
 
+from collections import Counter
 from security_monkey import app
 from security_monkey.common.jinja import get_jinja_env
 from security_monkey.datastore import User, ItemAudit
@@ -28,7 +29,8 @@ from security_monkey.alerter import get_subject, report_content
 import security_monkey.alerter
 import jinja2
 import os.path
-from moz_security_monkey.common.utils.utils import publish_to_mozdef
+import copy
+from moz_security_monkey.common.utils.utils import publish_to_mozdef, publish_to_service_api
 
 
 def get_summary(
@@ -151,5 +153,37 @@ class AuditAlerter(security_monkey.alerter.Alerter):
     to report all open, unjustified issues in summary form
     '''
     def report(self):
-        issues = ItemAudit.query.filter_by(justified=False).all()
+        # starter indicator we will send.
+        indicatorShell = {
+            "asset_type": "aws_account",
+            "asset_identifier": "",
+            "zone": "aws",
+            "timestamp_utc": "",
+            "event_source_name": "asap",
+            "likelihood_indicator": "low",
+            "details": {
+                "score": 0,
+                "findings":[]
+            }
+        }
+        issues = ItemAudit.query.filter_by(justified=False,status='Active',type='Audit Issues').all()
+        accounts={}
         for issue in issues:
+            # add issues to the account dict
+            # summarize the score per account
+                if issue.item.account not in accounts:
+                    accounts[issue.item.account]=dict()
+                    accounts[issue.item.account]["score"]=issue.score
+                    accounts[issue.item.account]["counter"]=[issue.item.technology]
+                else:
+                    accounts[issue.item.account]["score"]+=issue.score
+                    accounts[issue.item.account]["counter"].append(issue.item.technology)
+
+        # send a summary of each account, it's score and how many issues per 'technology'
+        for account in accounts:
+            asapIndicator=copy.deepcopy(indicatorShell)
+            asapIndicator["asset_identifier"]=account
+            asapIndicator["details"]["score"]=accounts[account]["score"]
+            for i in Counter(accounts[account]["counter"]).most_common():
+                asapIndicator["details"]["findings"].append({i[0]:i[1]})
+            publish_to_service_api(asapIndicator)
