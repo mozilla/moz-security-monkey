@@ -22,7 +22,7 @@
 
 from security_monkey import app
 from security_monkey.common.jinja import get_jinja_env
-from security_monkey.datastore import User
+from security_monkey.datastore import User, ItemAudit
 from security_monkey.common.utils.utils import send_email
 from security_monkey.alerter import get_subject, report_content
 import security_monkey.alerter
@@ -144,3 +144,12 @@ class Alerter(security_monkey.alerter.Alerter):
                                               details=details)
         return True
         # return send_email(subject=subject, recipients=self.emails, html=body)
+
+class AuditAlerter(security_monkey.alerter.Alerter):
+    '''
+    Summary audit report similar to the 'audit issues report'
+    to report all open, unjustified issues in summary form
+    '''
+    def report(self):
+        issues = ItemAudit.query.filter_by(justified=False).all()
+        for issue in issues:
