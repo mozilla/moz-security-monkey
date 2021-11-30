@@ -81,34 +81,42 @@ def _audit_changes(accounts, auditors, send_report, debug=True):
             if len(report_list) > 0:
                 subject = "Security Monkey {} Auditor Report".format(
                     au.i_am_singular)
-                audit_report = [
-                    {'account': item.account,
-                     'region': item.region,
-                     'index': item.index,
-                     'name': item.name,
-                     'totalscore': item.totalscore,
-                     'audit_issues': [
-                         {'score': issue.score,
-                          'issue': issue.issue,
-                          'notes': issue.notes,
-                          'justification': {
-                              'justified': issue.justified,
-                              'user_name': (issue.user.name
-                                            if issue.user is not None
-                                            else None),
-                              'user_email': (issue.user.email
-                                             if issue.user is not None
-                                             else None),
-                              'date': issue.justified_date,
-                              'justification': issue.justification}}
-                         for issue in item.audit_issues]}
-                    for item in report_list]
-                result = publish_to_mozdef(
-                    summary=subject,
-                    details={'subject': subject,
-                             'audit_report': audit_report})
+                for item in report_list:
+                    details = {
+                        'subject': subject,
+                        'account': item.account,
+                        'region': item.region,
+                        'index': item.index,
+                        'name': item.name,
+                        'totalscore': item.totalscore}
+                    issues = []
+                    for issue in item.audit_issues:
+                        audit_issue = {
+                            'score': issue.score,
+                            'issue': issue.issue,
+                            'notes': issue.notes}
+                        if issue.justified:
+                            audit_issue['justification'] = {
+                                'user_name': (issue.user.name
+                                              if issue.user is not None
+                                              else None),
+                                'user_email': (issue.user.email
+                                               if issue.user is not None
+                                               else None),
+                                'date': issue.justified_date,
+                                'justification': issue.justification}
+                        issues.append(audit_issue)
+                    if len(issues) > 0:
+                        details['issues'] = {}
+                        i = 0
+                        for issue in issues:
+                            i += 1
+                            details['issues'][i] = issue
+                    publish_to_mozdef(
+                        summary=subject,
+                        details=details)
                 app.logger.info(
-                    "Auditor report published to MozDef with {} "
+                    "Auditor reports published to MozDef with {} "
                     "entries.".format(len(report_list)))
         au.save_issues()
     db.session.close()
