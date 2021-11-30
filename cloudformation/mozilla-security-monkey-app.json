@@ -44,12 +44,14 @@
       "dev":{
         "Zone":"security.allizom.org",
         "SQSQueueARN":"arn:aws:sqs:us-west-1:656532927350:infosec_mozdef_events_non_prod",
-        "SAMLMetaDataURL":"https://mozilla.okta.com/app/exk15xwg4o6c7H4zf1d8/sso/saml/metadata"
+        "OldSAMLMetaDataURL":"https://mozilla.okta.com/app/exk15xwg4o6c7H4zf1d8/sso/saml/metadata",
+        "SAMLMetaDataURL":"https://auth.mozilla.auth0.com/samlp/metadata/snpYGrMjpcnNlz7FlXxgFs9ok7IRz83g"
       },
       "prod":{
         "Zone":"security.mozilla.org",
         "SQSQueueARN":"arn:aws:sqs:us-west-1:656532927350:infosec_mozdef_events",
-        "SAMLMetaDataURL":"https://mozilla.okta.com/app/exk15z8ov13bKbG631d8/sso/saml/metadata"
+        "OldSAMLMetaDataURL":"https://mozilla.okta.com/app/exk15z8ov13bKbG631d8/sso/saml/metadata",
+        "SAMLMetaDataURL":"https://auth.mozilla.auth0.com/samlp/metadata/snpYGrMjpcnNlz7FlXxgFs9ok7IRz83g"
       }
     }
   },
