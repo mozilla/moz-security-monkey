@@ -2,7 +2,7 @@
     "AWSTemplateFormatVersion":"2010-09-09",
     "Description":"Mozilla Security Monkey SQS",
     "Metadata":{
-        "Source":"https://github.com/gene1wood/moz-security-monkey"
+        "Source":"https://github.com/mozilla/moz-security-monkey"
     },
     "Parameters":{
         "QueueName":{

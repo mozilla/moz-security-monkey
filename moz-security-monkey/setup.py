@@ -19,13 +19,13 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.3.8',
+    version='0.3.9',
 
     description="Customizes security-monkey for Mozilla's use",
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/gene1wood/moz-security-monkey',
+    url='https://github.com/mozilla/moz-security-monkey',
 
     # Author details
     author='Gene Wood',
@@ -40,7 +40,7 @@ setup(
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 7 - Inactive',
 
         # Indicate who your project is intended for
         'Intended Audience :: Information Technology',

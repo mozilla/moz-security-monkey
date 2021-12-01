@@ -2,7 +2,7 @@
   "AWSTemplateFormatVersion":"2010-09-09",
   "Description":"Mozilla AWS Security Auditing Platform",
   "Metadata":{
-    "Source":"https://github.com/gene1wood/moz-security-monkey"
+    "Source":"https://github.com/mozilla/moz-security-monkey"
   },
   "Parameters":{
     "Environment":{
@@ -409,7 +409,7 @@
                       "git clone https://github.com/gene1wood/chef-security-monkey.git security-monkey && cd security-monkey",
                       "git checkout 5c2e39632b6de40d3a1c3a4493d4268bce250186",
                       "cd /opt",
-                      "git clone https://github.com/gene1wood/moz-security-monkey.git moz-security-monkey && cd moz-security-monkey",
+                      "git clone https://github.com/mozilla/moz-security-monkey.git moz-security-monkey && cd moz-security-monkey",
                       "git checkout HEAD",
                       "cd ~",
                       "BERKSHELF_PATH=/root/.berkshelf HOME=/root berks install --berksfile=/root/security-monkey/Berksfile",
