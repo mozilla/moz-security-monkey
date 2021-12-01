@@ -1,9 +1,13 @@
 # Overview
 
-`moz-security-monkey` is a python package, chef cookbook and AWS CloudFormation
-template that will customize Netflix Security Monkey for use at Mozilla. This
-customized deployment is referred to as AWS Security Auditing Platform (ASAP)
+`moz-security-monkey` was a python package, chef cookbook and AWS CloudFormation
+template that customized Netflix Security Monkey for use at Mozilla. This
+customized deployment was referred to as AWS Security Auditing Platform (ASAP)
 at Mozilla.
+
+We ended our use of the ASAP platform in November 2021 as the upstream Netflix 
+Security Monkey reached [end-of-life in 2020](https://github.com/Netflix/security_monkey/pull/1227),
+and we stopped using [MozDef](https://github.com/mozilla/MozDef) as our SIEM.
 
 The `moz-security-monkey` python package overrides various parts of Security
 Monkey in order to
